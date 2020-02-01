@@ -10,7 +10,7 @@ module.exports = {
     }),
   },
   resolver: {
-    assetExts: ['bin', 'txt', 'jpg', 'png'],
+    assetExts: ['bin', 'txt', 'jpg', 'png', 'pb'],
     sourceExts: ['js', 'json', 'ts', 'tsx', 'jsx'],
     blacklistRE: blacklist([/platform_node/])
   },
