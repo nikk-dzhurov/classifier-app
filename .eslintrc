@@ -1,0 +1,50 @@
+{
+  "extends": ["react-app", "plugin:jsx-a11y/recommended"],
+  "plugins": ["jsx-a11y"],
+  "rules": {
+    "indent": ["error", "tab", {
+      "SwitchCase": 1
+    }],
+    "space-infix-ops": "error",
+    "comma-dangle": ["error", "always-multiline"],
+    "no-multiple-empty-lines": ["error", {"max": 1}],
+    "space-before-function-paren": ["error", {
+      "anonymous": "always",
+      "named": "never",
+      "asyncArrow": "always"
+    }],
+    "brace-style": ["error", "1tbs", {"allowSingleLine": false}],
+    "comma-spacing": ["error", {"before": false,"after": true}],
+    "no-multi-spaces": ["error", {"ignoreEOLComments": true}],
+    "semi": ["error", "always"],
+    "key-spacing": ["error", {"mode": "strict"}],
+    "keyword-spacing": "error",
+    "space-before-blocks": "error",
+    "no-array-constructor": "error",
+    "no-trailing-spaces": "error",
+    "prefer-rest-params": "error",
+    "switch-colon-spacing": "error",
+    "no-var": "error",
+    "no-else-return": "error",
+    "no-new-object": "error",
+    "quotes": ["error", "single"],
+    "no-duplicate-imports": "error",
+    "one-var": ["error", "never"],
+    "object-shorthand": "error",
+    "arrow-spacing": "error",
+    "padding-line-between-statements": [
+      "error",
+      {"blankLine": "always", "prev": ["block", "block-like"], "next": "*"},
+      {"blankLine": "always", "prev": "*", "next": "return"}
+    ],
+    "curly": "error",
+    "react/jsx-curly-spacing": ["error", {"when": "never", "allowMultiline": false}],
+    "react/jsx-tag-spacing": ["error", {
+      "closingSlash": "never",
+      "beforeSelfClosing": "always",
+      "afterOpening": "never",
+      "beforeClosing": "allow"
+    }],
+    "jsx-a11y/no-autofocus": "off"
+  }
+}
