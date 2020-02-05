@@ -1,32 +1,20 @@
 import React from 'react';
 import {
-	StyleSheet,
-	View,
-	Text,
-	Image,
-	Button,
-	Linking,
-	AppState,
-	ActivityIndicator,
+	StyleSheet, View, Text, Image, Button,
+	Linking, AppState, TouchableHighlight,
 } from 'react-native';
+import jpeg from 'jpeg-js';
+import base64js from 'base64-js';
+import RNFS from 'react-native-fs';
+import '@tensorflow/tfjs-react-native';
 import * as tf from '@tensorflow/tfjs';
-import * as mobilenet from '@tensorflow-models/mobilenet';
-import { fetch } from '@tensorflow/tfjs-react-native';
 import ImagePicker from 'react-native-image-picker';
 import ImageResizer from 'react-native-image-resizer';
+import * as mobilenet from '@tensorflow-models/mobilenet';
 
-const jpeg = require('jpeg-js');
-const base64js = require('base64-js');
-const RNFS = require('react-native-fs');
-
-const LoadingScreen = ({text}) => (
-	<View style={styles.loadingContainer}>
-		<View style={styles.loadingGroup}>
-			<ActivityIndicator size={120} color="#0E91F4" />
-			<Text style={styles.loadingText}>Loading: {text}</Text>
-		</View>
-	</View>
-);
+import { AppHeader } from './components/AppHeader';
+import { LoadingScreen } from './components/LoadingScreen';
+import { ClassificationResult } from './components/ClassificationResult';
 
 export default class App extends React.Component {
 	constructor(props) {
@@ -39,6 +27,7 @@ export default class App extends React.Component {
 			appState: AppState.currentState,
 		};
 
+		this.model = null;
 		this.pickerOptions = {
 			title: 'Select Image',
 			storageOptions: {
@@ -46,12 +35,6 @@ export default class App extends React.Component {
 				path: 'images',
 			},
 		};
-
-		this.model = null;
-		this.classify = this.classify.bind(this);
-		this.showPicker = this.showPicker.bind(this);
-		this._handleOpenURL = this._handleOpenURL.bind(this);
-		this._handleAppStateChange = this._handleAppStateChange.bind(this);
 	}
 
 	componentDidMount() {
@@ -68,7 +51,7 @@ export default class App extends React.Component {
 		AppState.removeEventListener('change', this._handleAppStateChange);
 	}
 
-	_handleAppStateChange(nextAppState) {
+	_handleAppStateChange = nextAppState => {
 		if (nextAppState !== this.state.appState) {
 			this._checkInitialUrl();
 		}
@@ -81,7 +64,7 @@ export default class App extends React.Component {
 		this._handleOpenURL(url);
 	}
 
-	_handleOpenURL(event) {
+	_handleOpenURL = event => {
 		console.log(event);
 		if (event && event.url) {
 			this.setState({
@@ -91,44 +74,38 @@ export default class App extends React.Component {
 		}
 	}
 
-	async preload() {
+	preload = async () => {
 		await tf.setBackend('rn-webgl');
+
 		this.setState({loading: 'TFJS'});
 		await this.loadTFJS();
+
 		this.setState({loading: 'model'});
 		this.model = await this.loadModel();
+
 		this.setState({loading: 'warmup'});
 		await this.model.classify(tf.zeros([1, 224, 224, 3]));
 
 		this.setState({loading: false});
 	}
 
-	loadModel() {
-		return mobilenet.load();
-	}
+	loadModel = () => mobilenet.load();
 
-	loadTFJS() {
-		return tf.ready();
-	}
+	loadTFJS = () => tf.ready();
 
-	async classify(image) {
+	classify = async image => {
 		if (this.state.loading) {
 			return Promise.reject('App is loading');
 		}
 
-		const {imageSource} = this.state;
-		let rawData = null;
-		if (0) {
-			const imageAssetPath = Image.resolveAssetSource(imageSource);
-			const response = await fetch(imageAssetPath.uri, {}, { isBinary: true });
-			rawData = await response.arrayBuffer();
-		} else {
-			const data = await RNFS.readFile(imageSource.uri, 'base64');
-			rawData = base64js.toByteArray(data);
-		}
+		const { imageSource } = this.state;
+		const base64Data = await RNFS.readFile(imageSource.uri, 'base64');
+		const rawData = base64js.toByteArray(base64Data);
 
 		if (!rawData) {
-			console.log('An error occured');
+			this.setState({
+				pickerErrorMessage: 'Classification failed',
+			});
 
 			return;
 		}
@@ -140,7 +117,7 @@ export default class App extends React.Component {
 		this.setState({result});
 	}
 
-	imageToTensor(rawData) {
+	imageToTensor = rawData => {
 		const { width, height, data } = jpeg.decode(rawData, true);
 		const buffer = new Uint8Array(width * height * 3);
 		let offset = 0; // offset into original data
@@ -155,24 +132,31 @@ export default class App extends React.Component {
 		return tf.tensor3d(buffer, [height, width, 3]);
 	}
 
-	showPicker() {
-		ImagePicker.showImagePicker(this.pickerOptions, async (response) => {
+	showPicker = () => {
+		this.setState({
+			result: null,
+			pickerErrorMessage: '',
+			imageSource: null,
+		});
+
+		ImagePicker.showImagePicker(this.pickerOptions, async response => {
 			if (response.didCancel) {
 				this.setState({
-					pickerErrorMessage: 'Image picker was canceled.',
+					pickerErrorMessage: 'Image picker was canceled',
 				});
 			} else if (response.error) {
 				this.setState({
 					pickerErrorMessage: 'An error occured: ' + response.error,
 				});
 			} else {
-				const source = await ImageResizer.createResizedImage(response.uri, 400, 400, 'JPEG', 100, 0).catch((err) => {
-					console.log(err);
+				const source = await ImageResizer.createResizedImage(response.uri, 416, 416, 'JPEG', 100, 0)
+					.catch(err => {
+						console.log(err);
 
-					return null;
-				});
+						return null;
+					});
+
 				if (!source) {
-					console.log('resizing error');
 					this.setState({
 						pickerErrorMessage: 'An error occured during resizing',
 					});
@@ -188,58 +172,56 @@ export default class App extends React.Component {
 	}
 
 	render() {
-		let imgMsg = 'Pick Image First';
-		if (this.state.pickerErrorMessage) {
-			imgMsg = this.state.pickerErrorMessage + '\nPlease Pick Image Again';
+		const { loading, imageSource, pickerErrorMessage, result } = this.state;
+
+		let pickerMessage = 'Pick Image First';
+		if (pickerErrorMessage) {
+			pickerMessage = pickerErrorMessage + '\nPlease Pick Image Again';
 		}
 
-		if (this.state.loading) {
-			return <LoadingScreen text={this.state.loading} />;
+		if (loading) {
+			return (
+				<LoadingScreen text={loading} />
+			);
 		}
 
 		return (
 			<View style={styles.container}>
-				<View style={styles.header}>
-					<Text style={styles.title}>
-						Image Classifier
-					</Text>
-				</View>
+				<AppHeader />
 
-				<View style={styles.imageHolder}>
-					{ this.state.imageSource ?
-						<Image source={this.state.imageSource} style={styles.selectedImage} />
-						:
-						<Text style={styles.imageTitle}>
-							{imgMsg}
-						</Text>
-					}
-					{this.state.result && this.state.result.length > 0 && (
-						<View style={styles.resultsContainer}>
-							{this.state.result.sort((a, b) => b.probability - a.probability).slice(0, 3).map(el => (
-								<Text key={el.className} style={styles.classData}>
-									{`${el.className}: ${(el.probability * 100).toFixed(1)} %`}
-								</Text>
-							))}
-						</View>
-					)}
-				</View>
+				<TouchableHighlight onPress={this.showPicker}>
+					<View style={styles.imageWrapper}>
+						{ imageSource && !pickerErrorMessage ?
+							<Image source={imageSource} style={styles.image} />
+							:
+							<Text style={styles.pickerMessage}>
+								{pickerMessage}
+							</Text>
+						}
+						<ClassificationResult resultArray={result} />
+					</View>
+				</TouchableHighlight>
 
-				<View style={styles.buttonHolder}>
-					<Button onPress={this.showPicker} title="Pick Image" color="#0E91F4" />
-					<Button onPress={this.classify} title="Classify Image" color="#0E91F4" disabled={!this.state.imageSource} />
+				<View style={styles.buttonWrapper}>
+					<Button
+						onPress={this.showPicker}
+						title="Pick Image"
+						color="#0E91F4"
+					/>
+					<Button
+						onPress={this.classify}
+						title="Classify Image"
+						color="#0E91F4"
+						disabled={!imageSource}
+					/>
 				</View>
 			</View>
 		);
 	}
 }
 
+
 const styles = StyleSheet.create({
-	loadingContainer: {
-		flex: 1,
-		flexDirection: 'column',
-		justifyContent: 'center',
-		alignContent: 'center',
-	},
 	container: {
 		flex: 1,
 		flexDirection: 'column',
@@ -248,41 +230,17 @@ const styles = StyleSheet.create({
 		backgroundColor: '#F5FCFF',
 		paddingBottom: 20,
 	},
-	header: {
-		paddingHorizontal: 20,
-		alignSelf: 'stretch',
-		height: 70,
-		backgroundColor: '#1976D2',
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	title: {
-		color: '#fff',
-		fontSize: 25,
-	},
-	imageTitle: {
+	pickerMessage: {
 		fontSize: 25,
 		textAlign: 'center',
 	},
-	resultsContainer: {
-		width: 340,
-		height: 120,
-		backgroundColor: 'rgba(225, 225, 225, 0.5)',
-		position: 'absolute',
-		alignContent: 'center',
-		justifyContent: 'center',
-	},
-	classData: {
-		fontSize: 16,
-		alignSelf: 'center',
-	},
-	selectedImage: {
+	image: {
 		width: 350,
 		height: 350,
 		alignContent: 'center',
 		resizeMode: 'contain',
 	},
-	imageHolder: {
+	imageWrapper: {
 		height: 350,
 		width: 350,
 		alignSelf: 'center',
@@ -291,14 +249,9 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		backgroundColor: 'rgba(225, 225, 225, 0.5)',
 	},
-	buttonHolder: {
+	buttonWrapper: {
 		alignSelf: 'stretch',
 		flexDirection: 'row',
 		justifyContent: 'space-evenly',
-	},
-	loadingText: {
-		fontSize: 25,
-		marginTop: 20,
-		alignSelf: 'center',
 	},
 });
