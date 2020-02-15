@@ -14,11 +14,18 @@ import * as mobilenet from '@tensorflow-models/mobilenet';
 
 import { AppHeader } from './components/AppHeader';
 import { LoadingScreen } from './components/LoadingScreen';
+import { asyncStorageHandler } from './components/asyncStorageHandler';
 import { ClassificationResult } from './components/ClassificationResult';
 
 export default class App extends React.Component {
 	constructor(props) {
 		super(props);
+
+		this.asyncStorageModelKey = 'mobilenet';
+		this.mobilenetVersionConfig = {
+			version: 2,
+			alpha: 1,
+		};
 
 		this.state = {
 			loading: 'backend',
@@ -81,7 +88,7 @@ export default class App extends React.Component {
 		await this.loadTFJS();
 
 		this.setState({loading: 'model'});
-		this.model = await this.loadModel();
+		await this.loadModel();
 
 		this.setState({loading: 'warmup'});
 		await this.model.classify(tf.zeros([1, 224, 224, 3]));
@@ -89,7 +96,30 @@ export default class App extends React.Component {
 		this.setState({loading: false});
 	}
 
-	loadModel = () => mobilenet.load();
+	loadModel = async () => {
+		this.model = await mobilenet.load({
+			...this.mobilenetVersionConfig,
+			modelUrl: asyncStorageHandler(this.asyncStorageModelKey),
+		})
+			.then(model => {
+				console.log('Model is loaded from cache');
+
+				return model;
+			})
+			.catch(err => {
+				console.log('Failed to load model from asyncStorageHandler: ', err);
+
+				return null;
+			});
+
+		if (!this.model) {
+			console.log('Loading from network');
+			this.model = await mobilenet.load({...this.mobilenetVersionConfig});
+			await this.model.model.save(asyncStorageHandler(this.asyncStorageModelKey))
+				.then(result => console.log('Model cached: ', result))
+				.catch(err => console.log('Failed to cache the model', err));
+		}
+	}
 
 	loadTFJS = () => tf.ready();
 
@@ -174,7 +204,7 @@ export default class App extends React.Component {
 	render() {
 		const { loading, imageSource, pickerErrorMessage, result } = this.state;
 
-		let pickerMessage = 'Pick Image First';
+		let pickerMessage = 'Pick Image';
 		if (pickerErrorMessage) {
 			pickerMessage = pickerErrorMessage + '\nPlease Pick Image Again';
 		}
